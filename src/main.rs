@@ -1,70 +1,71 @@
-// //tokio and aws_sdk config imports
-// use aws_config::meta::region::RegionProviderChain;
-// use aws_sdk_sns::{Client, Error};
-// use aws_sdk_sns::config::Region;
 
 // //http server import 
 
 
 
-// //dotenv and env imports
-// use std::env;
-// use dotenv::dotenv;
 
-// // Function to generate a 6-digit OTP
-// fn generate_otp() -> u32 {
-//     use rand::Rng;
-//     rand::thread_rng().gen_range(100000..999999)
-// }
+
+
 
 // #[tokio::main]
 // async fn main() -> Result<(), Error> {
-//     // Load environment variables from .env file
-//     dotenv().ok();
-
-//     // Ensure critical environment variables are loaded
-//     let api_key = env::var("AWS_ACCESS_KEY_ID").expect("AWS_ACCESS_KEY_ID must be set");
-//     let api_secret_key = env::var("AWS_SECRET_ACCESS_KEY").expect("AWS_SECRET_ACCESS_KEY must be set");
-//     let region = env::var("AWS_REGION").unwrap_or_else(|_| "ap-south-1".to_string());
-
-//     // Convert region to a type that satisfies ProvideRegion
-//     let region_provider = RegionProviderChain::default_provider().or_else(Region::new(region));
-
-//     // Configure AWS client
-//     let config = aws_config::from_env().region(region_provider).load().await;
-//     let client = Client::new(&config);
-
-//     // Define phone number and OTP
-//     let phone_number = "+918600228032"; // Replace with the recipient's phone number.
-//     let otp = generate_otp(); // Generate OTP
-//     let message = format!("Your OTP is: {}", otp);
-
-//     // Publish the message to the given phone number
-//     let result = client
-//         .publish()
-//         .message(message)
-//         .phone_number(phone_number)
-//         .send()
-//         .await;
-
-//     match result {
-//         Ok(response) => {
-//             println!("otp is {}",otp);
-//             println!("Message sent successfully! Message ID: {:?}", response.message_id);
-//         }
-//         Err(e) => {
-//             println!("Failed to send message: {}", e);
-//         }
-//     }
-
-//     Ok(())
 
 // }
 
+struct RoutesStruct{
+    method:hyper::Method,
+    route:String,
+    handler:Box<dyn Handler> //Means any type passed to Box which implements the Handler trait.
+}
 
 
-mod handler;
+mod httpserver;
+mod utils;
+mod schema;
+mod threadpool;
+mod errors;
 
-fn main(){
+use httpserver::{resend_OTP, send_OTP, verify_OTP, AppState, Handler, Router};
+use hyper::Method;
+use hyper::{service::make_service_fn,Server};
 
+
+#[tokio::main]
+async fn main(){
+    const APPSTATE:AppState=AppState{
+        //add database later on.
+        database_connection:None
+    };
+    const routes_array:[RoutesStruct;3] = [
+        RoutesStruct{
+            method:Method::GET,
+            route:"/sendOTP".to_string(),
+            handler:Box::new(send_OTP)
+        },
+        RoutesStruct{
+            method:Method::POST,
+            route:"/resendOTP".to_string(),
+            handler:Box::new(resend_OTP)
+        },
+        RoutesStruct{
+            method:Method::POST,
+            route:"/verifyOTP".to_string(),
+            handler:Box::new(verify_OTP)
+        }
+            ];
+
+    let mut router:Router = Router::new(routes_array); //define new router
+    // router.get("/sendOTP",Box::new(sendotp())); //routes 
+    // router.post("/resendOTP",Box::new(resendotp()));
+    // router.post("/verifyOTP",Box::new(verifyOTP()));
+
+
+    let service_fn = make_service_fn(|_|{
+
+    });
+
+
+    let addr = "0.0.0.0:8080".parse().expect("address creation works");
+    let server = Server::bind(&addr).serve(service_fn);
+    println!("Listening on http://{}", addr);
 }
